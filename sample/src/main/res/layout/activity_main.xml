@@ -12,11 +12,12 @@
 
 	<com.encodex.widget.SlidableLayout
 		android:layout_width="match_parent"
-		android:layout_height="match_parent">
-		<Button
+		android:layout_height="match_parent"
+		android:background="#33000000">
+		<View
 			android:layout_width="match_parent"
 			android:layout_height="match_parent"
-			android:background="#33000000"/>
+			android:background="#33FFFFFF"/>
 	</com.encodex.widget.SlidableLayout>
 
 	<TextView
