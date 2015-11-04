@@ -13,8 +13,9 @@ import android.view.MotionEvent;
 import android.view.VelocityTracker;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
-import android.widget.FrameLayout;
+import android.widget.RelativeLayout;
 
 import com.nineoldandroids.animation.Animator;
 import com.nineoldandroids.animation.AnimatorSet;
@@ -32,7 +33,7 @@ import java.util.List;
  *
  */
 
-public class SlidableLayout extends FrameLayout{
+public class SlidableLayout extends RelativeLayout{
 	private static final int MIN_FLING_DISTANCE = 25; // dips
 	private static final int POINTER_INVALID = -1;
 
@@ -81,6 +82,8 @@ public class SlidableLayout extends FrameLayout{
 	private SlideDirection mSlideDirection;
 	private List<View> mIgnoredViews;
 
+	private AnimatorSet mSlideAnimation;
+
 	private boolean mEnabled;
 	private boolean mIsViewInitialized;
 	private boolean mIsViewSlidedOut;
@@ -120,6 +123,11 @@ public class SlidableLayout extends FrameLayout{
 		setWillNotDraw(false);
 		setDescendantFocusability(FOCUS_AFTER_DESCENDANTS);
 		setFocusable(true);
+
+		LayoutParams layoutParams = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+		View bottomView = new View(context);
+		bottomView.setClickable(true);
+		addView(bottomView, 0, layoutParams);
 
 		onCreateView(context);
 
@@ -203,9 +211,19 @@ public class SlidableLayout extends FrameLayout{
 		final int action = MotionEventCompat.getActionMasked(ev);
 		createVelocityTracker(ev);
 
+
+//		Log.d("DragHelper", "action: "+ action);
+
 		switch (action) {
 			case MotionEvent.ACTION_DOWN:
 				Log.d("DragHelper", "dispatchTouchEvent ACTION_DOWN");
+
+				if(mState == State.SLIDING){
+					mSlideAnimation.cancel();
+					mLastPositionY = ViewHelper.getY(this);
+					Log.d("DragHelper", "SLIDING → DOWN mLastPositionY: "+ mLastPositionY);
+					mState = State.IDLE;
+				}
 
 				if(mState != State.IDLE) break;
 
@@ -219,7 +237,8 @@ public class SlidableLayout extends FrameLayout{
 				if(isTouchLegal(ev)){
 					mState = State.TOUCH_DOWN;
 					toggleHardwareAcceleration(true);
-					return true;
+//					return true;
+//					ev.setAction(MotionEvent.ACTION_CANCEL);
 				}
 				break;
 			case MotionEvent.ACTION_MOVE:
@@ -230,7 +249,10 @@ public class SlidableLayout extends FrameLayout{
 						&& mState != State.TOUCH_MOVE_HORIZONTAL
 						&& mState != State.TOUCH_MOVE_VERTICAL) break;
 
-				if(mState == State.TOUCH_DOWN || mState == State.TOUCH_MOVE) if(!isGoodToMove(ev)) break;
+				Boolean isGoodToMove = null;
+				if(mState == State.TOUCH_DOWN || mState == State.TOUCH_MOVE){
+					if(!(isGoodToMove = isGoodToMove(ev))) break;
+				}
 
 				// TODO 分情况讨论移动边界
 
@@ -242,17 +264,22 @@ public class SlidableLayout extends FrameLayout{
 				float intentY = mLastPositionY + yOffset;
 				if(intentY < getTopBorder()){
 					intentY = getTopBorder();
+					mInitialMotionY = y;
 				}else if(intentY > getBottomBorder()){
 					intentY = getBottomBorder();
+					mInitialMotionY = y;
 				}
-//				else{
-//					intentY = mLastPositionY + mLastMotionY - mInitialMotionY;
-//				}
 
 				Log.d("DragHelper", "top: "+getTopBorder() + " bottom: "+getBottomBorder() + " intentY: "+ intentY);
 
 				ViewHelper.setY(this, intentY);
-				return true;
+
+				if(isGoodToMove == null){
+					return true;
+				}else {
+					ev.setAction(MotionEvent.ACTION_CANCEL);
+				}
+				break;
 			case MotionEvent.ACTION_UP:
 				Log.d("DragHelper", "dispatchTouchEvent ACTION_UP");
 
@@ -264,14 +291,11 @@ public class SlidableLayout extends FrameLayout{
 				switch (mState){
 					case TOUCH_DOWN:
 					case TOUCH_MOVE:
-						if(mIsViewSlidedOut){
-							toggleView(SlideDirection.LOCKED);
-							mActivePointerId = POINTER_INVALID;
-							return true;
-						}else{
-							mState = State.IDLE;
-							mActivePointerId = POINTER_INVALID;
-						}
+						toggleView(SlideDirection.LOCKED);
+						mActivePointerId = POINTER_INVALID;
+
+						if(mIsViewSlidedOut) return true;
+
 						break;
 					case TOUCH_MOVE_HORIZONTAL:
 					case TOUCH_MOVE_VERTICAL:
@@ -299,7 +323,15 @@ public class SlidableLayout extends FrameLayout{
 				break;
 			case MotionEvent.ACTION_CANCEL:
 				Log.d("DragHelper", "dispatchTouchEvent ACTION_CANCEL");
-
+				if(mIsViewSlidedOut){
+					toggleView(SlideDirection.UP);
+					mState = State.IDLE;
+					mActivePointerId = POINTER_INVALID;
+				}else{
+					toggleView(SlideDirection.LOCKED);
+					mState = State.IDLE;
+					mActivePointerId = POINTER_INVALID;
+				}
 				break;
 		}
 		return super.dispatchTouchEvent(ev);
@@ -316,7 +348,7 @@ public class SlidableLayout extends FrameLayout{
 	}
 
 	private boolean isSlidable(){
-		return mState!=State.TOUCH_DOWN && mState!= State.SLIDING;
+		return mState!= State.TOUCH_DOWN && mState!= State.SLIDING;
 	}
 
 	private void finishSlide(){
@@ -337,10 +369,10 @@ public class SlidableLayout extends FrameLayout{
 		if (activePointerId == POINTER_INVALID || pointerIndex == POINTER_INVALID)
 			return false;
 
-		final float x = MotionEventCompat.getX(event, pointerIndex);
+		final float x = event.getRawX();
 		final float dx = x - mLastMotionX;
 		final float xOffset = Math.abs(dx);
-		final float y = MotionEventCompat.getY(event, pointerIndex);
+		final float y = event.getRawY();
 		final float dy = y - mLastMotionY;
 		final float yOffset = Math.abs(dy);
 
@@ -396,18 +428,15 @@ public class SlidableLayout extends FrameLayout{
 	private void toggleView(SlideDirection direction){
 
 		// TODO 分情况讨论
-		AnimatorSet animatorSet;
 		switch (direction){
 			case LOCKED:
-				animatorSet = buildSlideAnimation(this, 0);
-				animatorSet.addListener(mViewToggleListener);
-				animatorSet.start();
+				buildSlideAnimation(this, 0);
+				mSlideAnimation.start();
 				mIsViewSlidedOut = false;
 				break;
 			case UP:
-				animatorSet = buildSlideAnimation(this, - mViewHeight + dip2px(mContext,56));
-				animatorSet.addListener(mViewToggleListener);
-				animatorSet.start();
+				buildSlideAnimation(this, -mViewHeight + dip2px(mContext, 56));
+				mSlideAnimation.start();
 				mIsViewSlidedOut = true;
 				break;
 		}
@@ -488,16 +517,15 @@ public class SlidableLayout extends FrameLayout{
 		}
 	}
 
-	private AnimatorSet buildSlideAnimation(View target, float targetPosY){
-
-		AnimatorSet slideAnimation = new AnimatorSet();
-		slideAnimation.playTogether(
+	private void buildSlideAnimation(View target, float targetPosY){
+		mSlideAnimation = new AnimatorSet();
+		mSlideAnimation.playTogether(
 				ObjectAnimator.ofFloat(target, "translationY", targetPosY)
 		);
-		slideAnimation.setInterpolator(new DecelerateInterpolator(4.0f));
+		mSlideAnimation.setInterpolator(new DecelerateInterpolator(4.0f));
 
-		slideAnimation.setDuration(500);
-		return slideAnimation;
+		mSlideAnimation.setDuration(700);
+		mSlideAnimation.addListener(mViewToggleListener);
 	}
 
 	private static int dip2px(Context context, float dipValue){
