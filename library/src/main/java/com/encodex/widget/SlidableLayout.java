@@ -497,13 +497,13 @@ public class SlidableLayout extends RelativeLayout{
 			}
 		} else {
 			if(mIsViewSlidedOut){
-				if(totalDelta < -mViewHeight * 0.8){
+				if(totalDelta + mLastPositionY < -mViewHeight * 0.8){
 					targetPosition = SlideDirection.UP;
 				}else{
 					targetPosition = SlideDirection.LOCKED;
 				}
 			}else{
-				if(totalDelta > -mViewHeight * 0.2){
+				if(totalDelta + mLastPositionY > -mViewHeight * 0.2){
 					targetPosition = SlideDirection.LOCKED;
 				}else{
 					targetPosition = SlideDirection.UP;
