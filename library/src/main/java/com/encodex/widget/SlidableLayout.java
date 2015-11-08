@@ -461,18 +461,21 @@ public class SlidableLayout extends RelativeLayout{
 		mIntentDirection = direction;
 
 		int duration;
-		final float totalDistance = getBottomBorder() - getTopBorder();
-		final float ratio = Math.abs(mLastPositionY)/totalDistance;
+		final float totalDistance = Math.abs(getTopBorder() - getBottomBorder());
+		final float ratio = Math.abs(ViewHelper.getY(this) - getBottomBorder())/totalDistance;
+		final float fixedRatio = 1 - (float)Math.sin((1-ratio)*Math.PI/2);
+
+		Log.d("DragHelper","ratio: "+ratio+" fixedRatio: "+fixedRatio);
 
 		// TODO 分情况讨论
 		switch (direction){
 			case LOCKED:
-				duration = Math.round(ratio * 600);
+				duration = Math.round(fixedRatio * 600);
 				buildSlideAnimation(this, 0, duration);
 				mSlideAnimation.start();
 				break;
 			case UP:
-				duration = Math.round((1-ratio) * 600);
+				duration = Math.round((1-fixedRatio) * 600);
 				buildSlideAnimation(this, -mViewHeight + dip2px(mContext, 56), duration);
 				mSlideAnimation.start();
 				break;
@@ -484,9 +487,9 @@ public class SlidableLayout extends RelativeLayout{
 		// TODO 分情况讨论
 
 		if (Math.abs(totalDelta) > mFlingDistance && Math.abs(velocity) > mMinimumVelocity) {
-			if (velocity > 0 && totalDelta > 0) {
+			if (velocity > 0) {
 				targetPosition = SlideDirection.LOCKED;
-			} else if (velocity < 0 && totalDelta < 0){
+			} else if (velocity < 0){
 				targetPosition = SlideDirection.UP;
 			} else {
 				if(totalDelta > 0){
@@ -496,14 +499,16 @@ public class SlidableLayout extends RelativeLayout{
 				}
 			}
 		} else {
+			final float totalDistance = Math.abs(getTopBorder() - getBottomBorder());
+			final float ratio = Math.abs(ViewHelper.getY(this) - getBottomBorder())/totalDistance;
 			if(mIsViewSlidedOut){
-				if(totalDelta + mLastPositionY < -mViewHeight * 0.8){
+				if(ratio > 0.8){
 					targetPosition = SlideDirection.UP;
 				}else{
 					targetPosition = SlideDirection.LOCKED;
 				}
 			}else{
-				if(totalDelta + mLastPositionY > -mViewHeight * 0.2){
+				if(ratio < 0.2){
 					targetPosition = SlideDirection.LOCKED;
 				}else{
 					targetPosition = SlideDirection.UP;
