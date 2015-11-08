@@ -278,15 +278,18 @@ public class SlidableLayout extends RelativeLayout{
 				mLastMotionY = y;
 
 				float intentY = mLastPositionY + yOffset;
+				Log.d("DragHelper", "top: "+getTopBorder() + " bottom: "+getBottomBorder() + " intentY: "+ intentY);
 				if(intentY < getTopBorder()){
 					intentY = getTopBorder();
 					mInitialMotionY = y;
+					mLastPositionY = getTopBorder();
 				}else if(intentY > getBottomBorder()){
 					intentY = getBottomBorder();
 					mInitialMotionY = y;
+					mLastPositionY = getBottomBorder();
 				}
 
-				Log.d("DragHelper", "top: "+getTopBorder() + " bottom: "+getBottomBorder() + " intentY: "+ intentY);
+				Log.d("DragHelper", "fixedIntentY: "+ intentY);
 
 				ViewHelper.setY(this, intentY);
 
